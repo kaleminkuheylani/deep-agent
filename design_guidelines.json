@@ -1,0 +1,111 @@
+{
+  "theme": "dark",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "design_philosophy": "A command-center for deep learning. Precision, high-density information, and brutalist clarity. The grid is visible. No decorative gradients; color is used purely to signal system state and hierarchy.",
+  "colors": {
+    "background": "#09090B",
+    "surface": "#18181B",
+    "surface_hover": "#27272A",
+    "border": "#3F3F46",
+    "primary": "#0055FF",
+    "primary_hover": "#0044CC",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "accent_success": "#10B981",
+    "accent_danger": "#EF4444",
+    "accent_warning": "#EAB308",
+    "accent_ai": "#8B5CF6"
+  },
+  "typography": {
+    "heading_font": "JetBrains Mono",
+    "body_font": "IBM Plex Sans",
+    "code_font": "JetBrains Mono",
+    "h1": "text-4xl tracking-tighter font-bold",
+    "h2": "text-2xl tracking-tight font-semibold",
+    "h3": "text-xl tracking-tight font-medium",
+    "h4": "text-lg tracking-tight font-medium uppercase tracking-[0.1em]",
+    "body": "text-sm leading-relaxed",
+    "small": "text-xs tracking-wide",
+    "metric_value": "text-3xl font-mono tracking-tighter",
+    "label": "text-xs uppercase tracking-[0.2em] font-medium text-zinc-400"
+  },
+  "spacing_and_layout": {
+    "grid_strategy": "Control Room Protocol (Dense, data-correlation focused)",
+    "container_padding": "p-4 md:p-6",
+    "gap_strategy": "gap-4",
+    "border_radius": "rounded-none",
+    "surface_style": "Grid Borders (Technical Look). 1px solid borders, no shadows.",
+    "layout_structure": {
+      "main_grid": "grid grid-cols-1 lg:grid-cols-4 h-screen w-full bg-zinc-950 text-zinc-50 border-collapse overflow-hidden",
+      "left_sidebar": "col-span-1 border-r border-zinc-800 flex flex-col h-full bg-zinc-950",
+      "code_area": "col-span-2 border-r border-zinc-800 flex flex-col h-full relative",
+      "right_sidebar": "col-span-1 flex flex-col h-full bg-zinc-950"
+    }
+  },
+  "components": {
+    "code_editor": {
+      "library": "monaco-editor",
+      "theme": "vs-dark",
+      "wrapper_classes": "flex-1 w-full relative",
+      "linter_style": "Custom Monaco squiggly lines via decorations. Errors shown in a bottom diagnostic panel."
+    },
+    "charts": {
+      "library": "recharts",
+      "style": "Minimalist. No grid lines behind the chart, 1px solid line for data. Tooltip must be a sharp rectangle with 1px border. Green (#10B981) for Accuracy, Red (#EF4444) for Loss."
+    },
+    "ai_assistant": {
+      "style": "Chat bubbles should be flat rectangles. AI responses have a subtle left border (accent_ai: #8B5CF6). User messages are aligned right with surface background. Input field should be borderless but sit inside a 1px border container."
+    },
+    "websocket_feedback": {
+      "style": "Terminal-like output. Monospace font, tiny text. Alternating row colors (zinc-900/zinc-950) for readability. Auto-scrolls to bottom. Agent status prominently displayed with a glowing dot."
+    },
+    "buttons": {
+      "primary": "bg-primary text-white hover:bg-primary_hover font-mono uppercase text-xs tracking-[0.1em] px-6 py-3 transition-colors border border-transparent",
+      "secondary": "bg-transparent text-zinc-300 hover:text-white border border-zinc-700 hover:border-zinc-500 font-mono uppercase text-xs tracking-[0.1em] px-4 py-2 transition-colors",
+      "danger": "bg-transparent text-red-500 hover:bg-red-500/10 border border-red-500/50 hover:border-red-500 font-mono uppercase text-xs tracking-[0.1em] px-4 py-2 transition-colors"
+    },
+    "cards": {
+      "default": "bg-zinc-900/50 border border-zinc-800 p-4 relative overflow-hidden",
+      "metric": "bg-zinc-900 border border-zinc-800 p-4 flex flex-col justify-between"
+    }
+  },
+  "interactions_and_motion": {
+    "hover_states": "Hard background color swaps or border color brightness shifts. No soft fades.",
+    "focus_states": "ring-1 ring-primary ring-offset-0 outline-none",
+    "transitions": "transition-colors duration-150 ease-linear",
+    "loading": "ASCII spinners or sharp progress bars (1px height) at the top of containers."
+  },
+  "media_and_assets": {
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5, size 16px to 20px, sharp and functional."
+    },
+    "images": [
+      {
+        "category": "empty_state",
+        "url": "https://images.pexels.com/photos/17483870/pexels-photo-17483870.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Abstract neural network data flow used for AI agent idle state or background texture"
+      },
+      {
+        "category": "avatar_developer",
+        "url": "https://images.unsplash.com/photo-1771061863061-8ffdddb28098?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwxfHxkZXZlbG9wZXIlMjBwb3J0cmFpdCUyMGRhcmt8ZW58MHx8fHwxNzc2MDYzMzM2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Developer portrait for user profile or agent avatar"
+      }
+    ]
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure > 4.5:1 ratio across all text. Red (#EF4444) on Dark (#09090B) passes, but be careful with thin fonts.",
+    "data_testid": "MANDATORY. Format: kebab-case, role-based. e.g., 'run-training-btn', 'loss-chart-container', 'code-editor-area'."
+  },
+  "instructions_to_main_agent": [
+    "1. This is a technical dashboard. Do NOT use soft shadows (`shadow-lg`, etc) or large border radii (`rounded-xl`). Use `rounded-none` or `rounded-sm` at most.",
+    "2. The layout should occupy the full viewport height (`h-screen`). Use a 3-column or 4-column CSS grid where the Monaco Editor takes the most space.",
+    "3. Implement the real-time feedback panel as a streaming terminal. Use WebSockets to simulate or receive data.",
+    "4. For the charts, use `recharts` with a dark theme. Remove all grid lines (`<CartesianGrid vertical={false} horizontal={false} />`).",
+    "5. Use `JetBrains Mono` for headers and code, `IBM Plex Sans` for standard text. Import them via Google Fonts.",
+    "6. Do not use standard Shadcn Cards. Use flat `div` elements with `border border-zinc-800 bg-zinc-950/50` to maintain the 'Grid Borders' brutalist look.",
+    "7. Include Play, Stop, and Step buttons for the Model Training controls.",
+    "8. Use the Lucide-React icons heavily for toolbars.",
+    "9. The AI Assistant chat should look like an integrated terminal pane, not a floating widget."
+  ]
+}

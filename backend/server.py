@@ -67,8 +67,40 @@ class AssistResponse(BaseModel):
     response: str
     session_id: str
 
+class CodeEventRequest(BaseModel):
+    action: str
+    code: str = ""
+    request_id: Optional[str] = None
+
 # ---- Active Training Sessions ----
 active_sessions: Dict[str, bool] = {}
+event_clients: Dict[str, WebSocket] = {}
+event_last_seen: Dict[str, float] = {}
+
+EVENT_RULES = [
+    {
+        "id": "R001",
+        "name": "training_loop_detected",
+        "keywords": ["loss.backward", "optimizer.step", "for epoch in"],
+        "message": "Training loop sinyali algılandı. Lint + train hazırlığı önerilir.",
+        "severity": "info",
+    },
+    {
+        "id": "R002",
+        "name": "metric_tracking_detected",
+        "keywords": ["loss", "accuracy", "val_loss", "val_acc"],
+        "message": "Metric takibi bulundu. Canlı chart feedback etkinleştirilebilir.",
+        "severity": "info",
+    },
+    {
+        "id": "R003",
+        "name": "missing_eval_phase",
+        "keywords": ["model.train()"],
+        "negative_keywords": ["model.eval()"],
+        "message": "model.train() var fakat model.eval() görünmüyor.",
+        "severity": "warning",
+    },
+]
 
 # ---- Linter / Rule Engine ----
 LINT_RULES = [
@@ -197,6 +229,36 @@ def lint_code(code: str) -> LintResult:
     return LintResult(errors=errors, warnings=warnings, info=info)
 
 
+def evaluate_event_rules(code: str) -> List[Dict[str, Any]]:
+    lowered = code.lower()
+    hits: List[Dict[str, Any]] = []
+    for rule in EVENT_RULES:
+        keywords = [k.lower() for k in rule.get("keywords", [])]
+        if not keywords:
+            continue
+        if not any(keyword in lowered for keyword in keywords):
+            continue
+        negative_keywords = [k.lower() for k in rule.get("negative_keywords", [])]
+        if negative_keywords and any(keyword in lowered for keyword in negative_keywords):
+            continue
+        hits.append(
+            {
+                "id": rule["id"],
+                "name": rule["name"],
+                "severity": rule["severity"],
+                "message": rule["message"],
+            }
+        )
+    return hits
+
+
+def _trim_code_for_realtime(code: str, max_chars: int = 60000) -> str:
+    """Protect websocket analysis from very large payloads."""
+    if len(code) <= max_chars:
+        return code
+    return code[:max_chars]
+
+
 # ---- Simulated Training ----
 async def run_training(session_id: str, config: TrainingConfig, websocket: WebSocket):
     """Simulate PyTorch model training with realistic metrics."""
@@ -304,6 +366,10 @@ async def run_training(session_id: str, config: TrainingConfig, websocket: WebSo
 async def root():
     return {"message": "Deep Agent API v1.0"}
 
+@api_router.get("/healthz")
+async def healthz():
+    return {"status": "ok", "service": "backend", "time": datetime.now(timezone.utc).isoformat()}
+
 @api_router.get("/agent/status")
 async def agent_status():
     return {
@@ -394,6 +460,61 @@ async def websocket_training(websocket: WebSocket, session_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         active_sessions.pop(session_id, None)
+
+
+@api_router.websocket("/ws/events")
+async def websocket_events(websocket: WebSocket):
+    await websocket.accept()
+    client_id = str(uuid.uuid4())
+    event_clients[client_id] = websocket
+    event_last_seen[client_id] = 0.0
+    try:
+        await websocket.send_json(
+            {
+                "type": "status",
+                "data": {
+                    "status": "connected",
+                    "message": "Event stream hazır. Kod değişikliklerini gönderebilirsiniz.",
+                },
+            }
+        )
+        while True:
+            payload = await websocket.receive_json()
+            event_req = CodeEventRequest(**payload)
+            action = event_req.action
+            if action == "code_changed":
+                now = asyncio.get_event_loop().time()
+                if now - event_last_seen.get(client_id, 0.0) < 0.2:
+                    continue
+                event_last_seen[client_id] = now
+                code = _trim_code_for_realtime(event_req.code)
+                lint_result = lint_code(code)
+                rule_hits = evaluate_event_rules(code)
+                await websocket.send_json(
+                    {
+                        "type": "code_analysis",
+                        "data": {
+                            "event": "code.changed",
+                            "request_id": event_req.request_id,
+                            "rule_hits": rule_hits,
+                            "lint_summary": {
+                                "errors": len(lint_result.errors),
+                                "warnings": len(lint_result.warnings),
+                                "info": len(lint_result.info),
+                            },
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        },
+                    }
+                )
+            elif action == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        logger.info("Event websocket disconnected")
+    except Exception as e:
+        logger.error(f"Event websocket error: {e}")
+    finally:
+        event_clients.pop(client_id, None)
+        event_last_seen.pop(client_id, None)
 
 # Include router
 app.include_router(api_router)

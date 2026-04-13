@@ -21,9 +21,16 @@ import LintPanel from "./components/LintPanel";
 import MetricsBar from "./components/MetricsBar";
 import TrainingHistory from "./components/TrainingHistory";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const backendFromEnv = process.env.REACT_APP_BACKEND_URL;
+const browserOrigin =
+  typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.host}`
+    : "http://localhost:3000";
+const BACKEND_URL = backendFromEnv || browserOrigin;
 const API = `${BACKEND_URL}/api`;
-const WS_URL = BACKEND_URL.replace(/^http/, "ws");
+const WS_URL = BACKEND_URL.startsWith("http")
+  ? BACKEND_URL.replace(/^http/, "ws")
+  : `${browserOrigin.replace(/^http/, "ws")}`;
 
 function App() {
   // State
@@ -44,12 +51,37 @@ function App() {
   });
 
   const wsRef = useRef(null);
+  const eventWsRef = useRef(null);
   const sessionIdRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const codeEventTimerRef = useRef(null);
+  const pendingRequestIdRef = useRef(0);
+  const [ruleHits, setRuleHits] = useState([]);
+
+  const appendLog = useCallback((newLogs) => {
+    setLogs((prev) => {
+      const merged = [...prev, ...(Array.isArray(newLogs) ? newLogs : [newLogs])];
+      return merged.slice(-500);
+    });
+  }, []);
 
   // Lint on code change with debounce
   const lintTimerRef = useRef(null);
   const handleCodeChange = useCallback((newCode) => {
     setCode(newCode);
+    if (codeEventTimerRef.current) clearTimeout(codeEventTimerRef.current);
+    codeEventTimerRef.current = setTimeout(() => {
+      if (eventWsRef.current?.readyState === WebSocket.OPEN) {
+        pendingRequestIdRef.current += 1;
+        eventWsRef.current.send(
+          JSON.stringify({
+            action: "code_changed",
+            code: newCode,
+            request_id: `code-${pendingRequestIdRef.current}`,
+          })
+        );
+      }
+    }, 250);
     if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
     lintTimerRef.current = setTimeout(async () => {
       try {
@@ -74,6 +106,51 @@ function App() {
     doLint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Event stream for code.changed ruleset feedback
+  useEffect(() => {
+    let retryCount = 0;
+    const connectEventStream = () => {
+      const eventWs = new WebSocket(`${WS_URL}/api/ws/events`);
+      eventWsRef.current = eventWs;
+
+      eventWs.onopen = () => {
+        retryCount = 0;
+        appendLog({ type: "status", message: "[SYSTEM] Event stream bağlı" });
+      };
+
+      eventWs.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "code_analysis") {
+          const hits = payload.data?.rule_hits || [];
+          setRuleHits(hits);
+          if (hits.length > 0) {
+            appendLog(
+              hits.map((hit) => ({
+                type: hit.severity === "warning" ? "warning" : "event",
+                message: `[RULE ${hit.id}] ${hit.message}`,
+              }))
+            );
+          }
+        }
+      };
+
+      eventWs.onclose = () => {
+        appendLog({ type: "status", message: "[SYSTEM] Event stream bağlantısı kapandı" });
+        retryCount += 1;
+        const retryDelay = Math.min(1500 * retryCount, 7000);
+        reconnectTimerRef.current = setTimeout(connectEventStream, retryDelay);
+      };
+    };
+
+    connectEventStream();
+
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (codeEventTimerRef.current) clearTimeout(codeEventTimerRef.current);
+      if (eventWsRef.current) eventWsRef.current.close();
+    };
+  }, [appendLog]);
 
   // Start training
   const startTraining = useCallback(async () => {
@@ -351,6 +428,14 @@ function App() {
                 <span className="font-mono text-[10px] text-zinc-500">Batch</span>
                 <span className="font-mono text-[10px] text-zinc-300">
                   {trainingConfig.batch_size}
+                </span>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="flex justify-between">
+                <span className="font-mono text-[10px] text-zinc-500">Rules</span>
+                <span className="font-mono text-[10px] text-zinc-300">
+                  {ruleHits.length} active
                 </span>
               </div>
             </div>

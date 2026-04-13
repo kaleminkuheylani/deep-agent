@@ -21,7 +21,7 @@ import LintPanel from "./components/LintPanel";
 import MetricsBar from "./components/MetricsBar";
 import TrainingHistory from "./components/TrainingHistory";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
 const WS_URL = BACKEND_URL.replace(/^http/, "ws");
 

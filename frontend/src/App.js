@@ -44,12 +44,22 @@ function App() {
   });
 
   const wsRef = useRef(null);
+  const eventWsRef = useRef(null);
   const sessionIdRef = useRef(null);
+  const [ruleHits, setRuleHits] = useState([]);
 
   // Lint on code change with debounce
   const lintTimerRef = useRef(null);
   const handleCodeChange = useCallback((newCode) => {
     setCode(newCode);
+    if (eventWsRef.current?.readyState === WebSocket.OPEN) {
+      eventWsRef.current.send(
+        JSON.stringify({
+          action: "code_changed",
+          code: newCode,
+        })
+      );
+    }
     if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
     lintTimerRef.current = setTimeout(async () => {
       try {
@@ -73,6 +83,40 @@ function App() {
     };
     doLint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Event stream for code.changed ruleset feedback
+  useEffect(() => {
+    const eventWs = new WebSocket(`${WS_URL}/api/ws/events`);
+    eventWsRef.current = eventWs;
+
+    eventWs.onmessage = (event) => {
+      const payload = JSON.parse(event.data);
+      if (payload.type === "code_analysis") {
+        const hits = payload.data?.rule_hits || [];
+        setRuleHits(hits);
+        if (hits.length > 0) {
+          setLogs((prev) => [
+            ...prev,
+            ...hits.map((hit) => ({
+              type: hit.severity === "warning" ? "warning" : "event",
+              message: `[RULE ${hit.id}] ${hit.message}`,
+            })),
+          ]);
+        }
+      }
+    };
+
+    eventWs.onclose = () => {
+      setLogs((prev) => [
+        ...prev,
+        { type: "status", message: "[SYSTEM] Event stream bağlantısı kapandı" },
+      ]);
+    };
+
+    return () => {
+      eventWs.close();
+    };
   }, []);
 
   // Start training
@@ -351,6 +395,14 @@ function App() {
                 <span className="font-mono text-[10px] text-zinc-500">Batch</span>
                 <span className="font-mono text-[10px] text-zinc-300">
                   {trainingConfig.batch_size}
+                </span>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="flex justify-between">
+                <span className="font-mono text-[10px] text-zinc-500">Rules</span>
+                <span className="font-mono text-[10px] text-zinc-300">
+                  {ruleHits.length} active
                 </span>
               </div>
             </div>
